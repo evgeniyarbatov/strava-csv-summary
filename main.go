@@ -5,8 +5,12 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"slices"
+	"sort"
 	"strconv"
 	"time"
+
+	"gonum.org/v1/gonum/stat"
 )
 
 type MetricSummary struct {
@@ -15,7 +19,6 @@ type MetricSummary struct {
 	Min    float64
 	Max    float64
 	Std    float64
-	Count  int
 }
 
 type FileSummary struct {
@@ -57,6 +60,20 @@ func WriteCSV(
 			summary.Filename,
 			FloatToString(summary.Duration),
 			FloatToString(summary.Distance),
+			FloatToString(summary.Heartrate.Median),
+			FloatToString(summary.Heartrate.Min),
+			FloatToString(summary.Heartrate.Max),
+			FloatToString(summary.Heartrate.Std),
+			FloatToString(summary.Elevation.Min),
+			FloatToString(summary.Elevation.Max),
+			FloatToString(summary.Cadence.Median),
+			FloatToString(summary.Cadence.Min),
+			FloatToString(summary.Cadence.Max),
+			FloatToString(summary.Cadence.Std),
+			FloatToString(summary.Power.Median),
+			FloatToString(summary.Power.Min),
+			FloatToString(summary.Power.Max),
+			FloatToString(summary.Power.Std),
 		}
 
 		writer.Write(entry)
@@ -84,6 +101,19 @@ func haversine(lat1, lon1, lat2, lon2 float64) float64 {
 	return R * c // in meters
 }
 
+func getMetricSummary(data []float64) MetricSummary {
+	sort.Float64s(data)
+	median := stat.Quantile(0.5, stat.Empirical, data, nil)
+
+	return MetricSummary{
+		Mean:   stat.Mean(data, nil),
+		Median: median,
+		Min:    slices.Min(data),
+		Max:    slices.Max(data),
+		Std:    stat.StdDev(data, nil),
+	}
+}
+
 func main() {
 	inputFile := os.Args[1]
 	outputFile := os.Args[2]
@@ -106,6 +136,7 @@ func main() {
 
 	var cFilename string
 	var prevLat, prevLong float64
+	var heartrates, eleveations, cadences, powers []float64
 
 	for _, record := range records {
 		curTime := record[0]
@@ -115,7 +146,23 @@ func main() {
 		lat, _ := strconv.ParseFloat(record[3], 64)
 		long, _ := strconv.ParseFloat(record[4], 64)
 
-		if cFilename == "" || cFilename != filename {
+		elevation, _ := strconv.ParseFloat(record[5], 64)
+		cadence, _ := strconv.ParseFloat(record[6], 64)
+		hr, _ := strconv.ParseFloat(record[7], 64)
+		power, _ := strconv.ParseFloat(record[8], 64)
+
+		if cFilename == "" {
+			cFilename = filename
+		} else if cFilename != filename {
+			summary := summaries[cFilename]
+
+			summary.Heartrate = getMetricSummary(heartrates)
+			summary.Elevation = getMetricSummary(eleveations)
+			summary.Cadence = getMetricSummary(cadences)
+			summary.Power = getMetricSummary(powers)
+
+			summaries[cFilename] = summary
+
 			cFilename = filename
 		}
 
@@ -130,6 +177,9 @@ func main() {
 
 			summaries[cFilename] = summary
 		} else {
+			heartrates, eleveations, cadences, powers =
+				[]float64{}, []float64{}, []float64{}, []float64{}
+
 			summaries[cFilename] = FileSummary{
 				StartTime: curTime,
 				Sport:     sport,
@@ -140,6 +190,11 @@ func main() {
 
 		prevLat = lat
 		prevLong = long
+
+		heartrates = append(heartrates, hr)
+		eleveations = append(eleveations, elevation)
+		cadences = append(cadences, cadence)
+		powers = append(powers, power)
 	}
 
 	WriteCSV(summaries, outputFile)
