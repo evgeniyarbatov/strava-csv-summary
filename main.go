@@ -14,11 +14,9 @@ import (
 )
 
 type MetricSummary struct {
-	Mean   float64
 	Median float64
 	Min    float64
 	Max    float64
-	Std    float64
 }
 
 type FileSummary struct {
@@ -52,6 +50,28 @@ func WriteCSV(
 	writer := csv.NewWriter(outputFile)
 	defer writer.Flush()
 
+	header := []string{
+		"StartTime",
+		"EndTime",
+		"Sport",
+		"Filename",
+		"Duration",
+		"Distance",
+		"HRMin",
+		"HRMedian",
+		"HRMax",
+		"ElevationMin",
+		"ElevationMedian",
+		"ElevationMax",
+		"CadenceMin",
+		"CadenceMedian",
+		"CadenceMax",
+		"PowerMin",
+		"PowerMedian",
+		"PowerMax",
+	}
+	writer.Write(header)
+
 	for _, summary := range summaries {
 		entry := []string{
 			summary.StartTime,
@@ -60,20 +80,18 @@ func WriteCSV(
 			summary.Filename,
 			FloatToString(summary.Duration),
 			FloatToString(summary.Distance),
-			FloatToString(summary.Heartrate.Median),
 			FloatToString(summary.Heartrate.Min),
+			FloatToString(summary.Heartrate.Median),
 			FloatToString(summary.Heartrate.Max),
-			FloatToString(summary.Heartrate.Std),
 			FloatToString(summary.Elevation.Min),
+			FloatToString(summary.Elevation.Median),
 			FloatToString(summary.Elevation.Max),
-			FloatToString(summary.Cadence.Median),
 			FloatToString(summary.Cadence.Min),
+			FloatToString(summary.Cadence.Median),
 			FloatToString(summary.Cadence.Max),
-			FloatToString(summary.Cadence.Std),
-			FloatToString(summary.Power.Median),
 			FloatToString(summary.Power.Min),
+			FloatToString(summary.Power.Median),
 			FloatToString(summary.Power.Max),
-			FloatToString(summary.Power.Std),
 		}
 
 		writer.Write(entry)
@@ -106,11 +124,9 @@ func getMetricSummary(data []float64) MetricSummary {
 	median := stat.Quantile(0.5, stat.Empirical, data, nil)
 
 	return MetricSummary{
-		Mean:   stat.Mean(data, nil),
 		Median: median,
 		Min:    slices.Min(data),
 		Max:    slices.Max(data),
-		Std:    stat.StdDev(data, nil),
 	}
 }
 
